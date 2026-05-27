@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Sohbet",
+  "description": "Güvenli, uçtan uca şifreli, modern ve yapay zeka destekli mesajlaşma uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
