@@ -42,6 +42,13 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTheme = MutableStateFlow("Dark") // default is attractive dark
     val selectedTheme: StateFlow<String> = _selectedTheme.asStateFlow()
 
+    private val _enableAutoReplies = MutableStateFlow(false) // Deactivated by default so user can chat with friends normally!
+    val enableAutoReplies: StateFlow<Boolean> = _enableAutoReplies.asStateFlow()
+
+    fun toggleAutoReplies(enabled: Boolean) {
+        _enableAutoReplies.value = enabled
+    }
+
     // Active screen navigation inside Home
     // Tabs: 0 -> Sohbetler, 1 -> Arkadaşlar, 2 -> Topluluklar, 3 -> Geçmiş, 4 -> Ayarlar & Destek
     val currentTab = mutableStateOf(0)
@@ -285,9 +292,11 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             delay(500)
             repository.insertMessage(savedMessage.copy(status = "Read"))
 
-            // Trigger beautiful simulated automated reply from contact to make the app feel interactive
-            delay(1000)
-            triggerSimulatedReply(active, content)
+            // Trigger beautiful simulated automated reply from contact to make the app feel interactive if enabled
+            if (_enableAutoReplies.value) {
+                delay(1000)
+                triggerSimulatedReply(active, content)
+            }
         }
     }
 

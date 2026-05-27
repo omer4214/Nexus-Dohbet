@@ -321,31 +321,31 @@ fun HomeScreen(viewModel: NexusViewModel) {
                     selected = tabIndex == 0,
                     onClick = { viewModel.currentTab.value = 0 },
                     icon = { Icon(Icons.Default.Chat, contentDescription = "Sohbetler") },
-                    label = { Text("Sohbetler", fontSize = 11.sp) }
+                    label = { Text("Sohbetler", fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 )
                 NavigationBarItem(
                     selected = tabIndex == 1,
                     onClick = { viewModel.currentTab.value = 1 },
-                    icon = { Icon(Icons.Default.People, contentDescription = "Arkadaşlar") },
-                    label = { Text("Arkadaşlar", fontSize = 11.sp) }
+                    icon = { Icon(Icons.Default.People, contentDescription = "Kişiler") },
+                    label = { Text("Kişiler", fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 )
                 NavigationBarItem(
                     selected = tabIndex == 2,
                     onClick = { viewModel.currentTab.value = 2 },
-                    icon = { Icon(Icons.Default.GroupWork, contentDescription = "Topluluklar") },
-                    label = { Text("Topluluklar", fontSize = 11.sp) }
+                    icon = { Icon(Icons.Default.GroupWork, contentDescription = "Gruplar") },
+                    label = { Text("Gruplar", fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 )
                 NavigationBarItem(
                     selected = tabIndex == 3,
                     onClick = { viewModel.currentTab.value = 3 },
-                    icon = { Icon(Icons.Default.History, contentDescription = "Geçmiş") },
-                    label = { Text("Aramalar", fontSize = 11.sp) }
+                    icon = { Icon(Icons.Default.History, contentDescription = "Aramalar") },
+                    label = { Text("Aramalar", fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 )
                 NavigationBarItem(
                     selected = tabIndex == 4,
                     onClick = { viewModel.currentTab.value = 4 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Destek/Ayarlar") },
-                    label = { Text("Ayarlar", fontSize = 11.sp) }
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ayarlar") },
+                    label = { Text("Ayarlar", fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 )
             }
         },
@@ -1091,6 +1091,47 @@ fun UserProfileOptions(user: com.example.data.ProfileEntity, selectedTheme: Stri
             }
         }
 
+        // Simulator Auto Response Toggle Switch
+        item {
+            val autoReplies by viewModel.enableAutoReplies.collectAsState()
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Otomatik Sohbet Simülatörü",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Kişilere gönderdiğiniz mesajlara otomatik/bot yanıtların gelmesini sağlar. Arkadaşlarınızla kasmadan, gerçekçi şifreli notlaşma için bunu kapatabilirsiniz.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Switch(
+                        checked = autoReplies,
+                        onCheckedChange = { viewModel.toggleAutoReplies(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
+                }
+            }
+        }
+
         // Additional specifications metadata info panel
         item {
             Card(
@@ -1259,7 +1300,7 @@ fun SupportScreen(viewModel: NexusViewModel) {
                     .background(MaterialTheme.colorScheme.primary)
                     .testTag("support_send_button")
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Soru Sor", tint = Color.White)
+                Icon(Icons.Default.Send, contentDescription = "Soru Sor", tint = Color.White)
             }
         }
     }
@@ -1376,6 +1417,15 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                     viewModel.clearChat(currentContact.emailOrPhone)
                                 },
                                 leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) }
+                            )
+                            val autoReplies by viewModel.enableAutoReplies.collectAsState()
+                            DropdownMenuItem(
+                                text = { Text(if (autoReplies) "Bot Rolü: Aktif" else "Bot Rolü: Kapalı") },
+                                onClick = {
+                                    showDropdownMenu = false
+                                    viewModel.toggleAutoReplies(!autoReplies)
+                                },
+                                leadingIcon = { Icon(Icons.Default.Android, contentDescription = null, tint = if (autoReplies) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
                             )
                         }
                     }
@@ -1677,18 +1727,6 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                             )
                                             if (isSelf) {
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                val statusText = when (msg.status) {
-                                                    "Sent" -> "Gönderildi"
-                                                    "Delivered" -> "İletildi"
-                                                    "Read" -> "Okundu"
-                                                    else -> ""
-                                                }
-                                                Text(
-                                                    text = statusText,
-                                                    fontSize = 8.sp,
-                                                    color = Color.White.copy(alpha = 0.7f)
-                                                )
-                                                Spacer(modifier = Modifier.width(2.dp))
                                                 Icon(
                                                     imageVector = when (msg.status) {
                                                         "Sent" -> Icons.Default.Check
@@ -1803,7 +1841,7 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                 .testTag("chat_send_button")
                         ) {
                             Icon(
-                                imageVector = if (inputText.isNotEmpty()) Icons.AutoMirrored.Filled.Send else Icons.Default.Mic,
+                                imageVector = if (inputText.isNotEmpty()) Icons.Default.Send else Icons.Default.Mic,
                                 contentDescription = "Gönder",
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
