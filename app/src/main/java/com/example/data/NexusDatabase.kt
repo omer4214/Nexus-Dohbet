@@ -11,9 +11,10 @@ import androidx.room.RoomDatabase
         ContactEntity::class,
         MessageEntity::class,
         CommunityEntity::class,
-        CallHistoryEntity::class
+        CallHistoryEntity::class,
+        AccountEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class NexusDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class NexusDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun communityDao(): CommunityDao
     abstract fun callHistoryDao(): CallHistoryDao
+    abstract fun accountDao(): AccountDao
 
     companion object {
         @Volatile

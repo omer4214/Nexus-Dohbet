@@ -49,6 +49,20 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         _enableAutoReplies.value = enabled
     }
 
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    fun clearAuthError() {
+        _authError.value = null
+    }
+
+    private val _addFriendError = MutableStateFlow<String?>(null)
+    val addFriendError: StateFlow<String?> = _addFriendError.asStateFlow()
+
+    fun clearAddFriendError() {
+        _addFriendError.value = null
+    }
+
     // Active screen navigation inside Home
     // Tabs: 0 -> Sohbetler, 1 -> Arkadaşlar, 2 -> Topluluklar, 3 -> Geçmiş, 4 -> Ayarlar & Destek
     val currentTab = mutableStateOf(0)
@@ -111,11 +125,49 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     data class SupportMessage(val sender: String, val message: String, val timestamp: Long = System.currentTimeMillis())
 
     // --- Authentication Actions ---
+    fun login(email: String, passwordConfirm: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            val account = repository.authenticate(email.trim(), passwordConfirm)
+            if (account == null) {
+                _authError.value = "Hata: Girdiğiniz e-posta adresi sistemde kayıtlı değil ya da şifreniz yanlış!"
+                return@launch
+            }
+            
+            // Success! Load profile details or create if not present
+            val key = CryptoHelper.generateSessionKey()
+            val profile = ProfileEntity(
+                email = account.email,
+                fullName = account.fullName,
+                phoneNumber = account.phoneNumber,
+                passwordHash = account.passwordHash,
+                themeChoice = _selectedTheme.value,
+                rsaPrivateKey = "PRV_KEY_" + CryptoHelper.generateSessionKey().substring(0, 8),
+                rsaPublicKey = "PUB_KEY_" + CryptoHelper.generateSessionKey().substring(0, 8),
+                aesSessionKey = key
+            )
+            repository.insertProfile(profile)
+            _currentUser.value = profile
+            _isLoggedIn.value = true
+        }
+    }
+
     fun registerAndLogin(email: String, fullName: String, phone: String, passwordConfirm: String) {
         viewModelScope.launch {
+            _authError.value = null
+            
+            // Insert account to the simulated Firebase users database first
+            val newAcc = AccountEntity(
+                email = email.trim(),
+                fullName = fullName,
+                phoneNumber = phone,
+                passwordHash = passwordConfirm
+            )
+            repository.insertAccount(newAcc)
+
             val key = CryptoHelper.generateSessionKey()
             val newProfile = ProfileEntity(
-                email = email,
+                email = email.trim(),
                 fullName = fullName,
                 phoneNumber = phone,
                 passwordHash = passwordConfirm, 
@@ -132,7 +184,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         _isLoggedIn.value = false
-        // Keep DB but remove session pointer
+        _currentUser.value = null
     }
 
     // --- Profile & Theme Management ---
@@ -158,21 +210,31 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         _activeChatContact.value = contact
     }
 
-    fun addFriend(name: String, emailOrPhone: String, phone: String) {
+    fun addFriend(name: String, emailOrPhone: String, phone: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
+            _addFriendError.value = null
+            val account = repository.getAccountByEmail(emailOrPhone.trim())
+            if (account == null) {
+                _addFriendError.value = "Hata: Girdiğiniz e-posta adresi Nexus ağ geçidinde bulunamadı! Lütfen kayıtlı bir e-posta adresi yazıp tekrar deneyin."
+                return@launch
+            }
+
+            // Create outbound connection: isPendingApproval = false so WE do not see the accept dialog
+            val isOnline = listOf(true, false).random()
             val newFriend = ContactEntity(
-                emailOrPhone = emailOrPhone,
-                name = name,
-                phoneNumber = phone,
-                statusText = "Bağlantı isteği onay bekliyor... ⏳",
-                isOnline = true,
+                emailOrPhone = emailOrPhone.trim(),
+                name = name.ifEmpty { account.fullName },
+                phoneNumber = phone.ifEmpty { account.phoneNumber },
+                statusText = if (isOnline) "Çevrimiçi" else "Sohbeti başlatmak için bir mesaj gönderin... 🔒",
+                isOnline = isOnline,
                 isBlocked = false,
                 isReported = false,
                 profileColorHex = listOf("#E91E63", "#4CAF50", "#2196F3", "#9C27B0", "#FFC107").random(),
-                lastSeenTime = "Çevrimiçi",
-                isPendingApproval = true
+                lastSeenTime = if (isOnline) "Çevrimiçi" else "Son görülme bugün " + listOf("09:15", "11:42", "14:20", "18:05", "20:50").random(),
+                isPendingApproval = false // Sent request is already accepted on our side, no need to show approval card for ourselves!
             )
             repository.insertContact(newFriend)
+            onSuccess()
         }
     }
 
@@ -286,16 +348,22 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
             val insertedId = repository.insertMessage(newMessage)
             val savedMessage = newMessage.copy(id = insertedId)
             
-            // Simulating ticking checks (Sent -> Delivered -> Read) on the SAME message ID
-            delay(500)
-            repository.insertMessage(savedMessage.copy(status = "Delivered"))
-            delay(500)
-            repository.insertMessage(savedMessage.copy(status = "Read"))
-
-            // Trigger beautiful simulated automated reply from contact to make the app feel interactive if enabled
-            if (_enableAutoReplies.value) {
-                delay(1000)
-                triggerSimulatedReply(active, content)
+            // Simulating realistic status tick transitions based on online/offline state!
+            if (active.isOnline) {
+                delay(600)
+                val deliveredMsg = savedMessage.copy(status = "Delivered")
+                repository.insertMessage(deliveredMsg)
+                
+                // If auto replies are active, they read it and respond
+                if (_enableAutoReplies.value) {
+                    delay(1000)
+                    repository.insertMessage(deliveredMsg.copy(status = "Read"))
+                    
+                    delay(1200)
+                    triggerSimulatedReply(active, content)
+                }
+            } else {
+                // Offline recipient: bleibt bei 'Sent' status (tek gri tik) -> exceptionally realistic!
             }
         }
     }

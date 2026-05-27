@@ -12,6 +12,20 @@ class NexusRepository(private val db: NexusDatabase) {
     private val messageDao = db.messageDao()
     private val communityDao = db.communityDao()
     private val callHistoryDao = db.callHistoryDao()
+    private val accountDao = db.accountDao()
+
+    // --- Firebase Accounts Simulation ---
+    suspend fun getAccountByEmail(email: String): AccountEntity? = withContext(Dispatchers.IO) {
+        accountDao.getAccountByEmail(email)
+    }
+
+    suspend fun authenticate(email: String, password: String): AccountEntity? = withContext(Dispatchers.IO) {
+        accountDao.authenticate(email, password)
+    }
+
+    suspend fun insertAccount(account: AccountEntity) = withContext(Dispatchers.IO) {
+        accountDao.insertAccount(account)
+    }
 
     // --- User Profile ---
     val profileFlow: Flow<ProfileEntity?> = userDao.getProfileFlow()
@@ -86,6 +100,46 @@ class NexusRepository(private val db: NexusDatabase) {
 
     // --- Dynamic Seeding / Prepopulate ---
     suspend fun prepopulateIfNeeded() = withContext(Dispatchers.IO) {
-        // No seed data added. Starting with a 100% clean, empty workspace for the user.
+        // Core mock registered accounts directory (Simulated Firebase Users Directory)
+        val defaultAccounts = listOf(
+            AccountEntity("56celikomer@gmail.com", "Ömer Çelik", "+90 (555) 777 56 56", "admin1212"),
+            AccountEntity("ayse@nexus.com", "Ayşe Yılmaz", "+90 (532) 111 22 33", "sifre123"),
+            AccountEntity("mehmet@nexus.com", "Mehmet Yıldız", "+90 (544) 444 55 66", "sifre123"),
+            AccountEntity("elif@nexus.com", "Elif Kaya", "+90 (505) 555 66 77", "sifre123"),
+            AccountEntity("can@nexus.com", "Can Demir", "+90 (533) 999 88 77", "sifre123")
+        )
+        
+        for (acc in defaultAccounts) {
+            accountDao.insertAccount(acc)
+        }
+
+        // Seed a pending incoming friend request from Mehmet to show off approval flows
+        val existing = db.contactDao().getAllContactsFlow().firstOrNull() ?: emptyList()
+        if (existing.isEmpty()) {
+            val pendingFromMehmet = ContactEntity(
+                emailOrPhone = "mehmet@nexus.com",
+                name = "Mehmet Yıldız",
+                phoneNumber = "+90 (544) 444 55 66",
+                statusText = "Uçtan uca şifreli bağlantı kurmak istiyor... ⏳",
+                isOnline = true, // Shows online when approved
+                isBlocked = false,
+                isReported = false,
+                profileColorHex = "#9C27B0", // purple
+                lastSeenTime = "Çevrimiçi",
+                isPendingApproval = true // Yes, this is an incoming pending request!
+            )
+            db.contactDao().insertContact(pendingFromMehmet)
+
+            // Seed a default community
+            val communityHub = CommunityEntity(
+                id = "cyber_sec_union",
+                name = "Siber Güvenlik Birliği 📡",
+                desc = "Uçtan uca şifreli siber ağ operasyonları, veri gizliliği ve güvenlik protokolleri bilgi paylaşım kanalı.",
+                membersCount = 143,
+                adminName = "Siber Savunma Merkezi",
+                iconColorHex = "#00A884"
+            )
+            db.communityDao().insertCommunity(communityHub)
+        }
     }
 }

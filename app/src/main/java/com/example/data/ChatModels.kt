@@ -143,3 +143,27 @@ interface CallHistoryDao {
     @Query("DELETE FROM call_history")
     suspend fun clearHistory()
 }
+
+// --- 6. REGISTERED ACCOUNT DIRECTORY (SIMULATED CLOUD / FIREBASE DB) ---
+@Entity(tableName = "nexus_accounts")
+data class AccountEntity(
+    @PrimaryKey val email: String,
+    val fullName: String,
+    val phoneNumber: String,
+    val passwordHash: String
+)
+
+@Dao
+interface AccountDao {
+    @Query("SELECT * FROM nexus_accounts WHERE email = :email LIMIT 1")
+    suspend fun getAccountByEmail(email: String): AccountEntity?
+
+    @Query("SELECT * FROM nexus_accounts WHERE email = :email AND passwordHash = :password LIMIT 1")
+    suspend fun authenticate(email: String, password: String): AccountEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccount(account: AccountEntity)
+
+    @Query("SELECT * FROM nexus_accounts")
+    suspend fun getAllAccounts(): List<AccountEntity>
+}

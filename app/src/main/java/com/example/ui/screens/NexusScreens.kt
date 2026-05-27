@@ -63,11 +63,13 @@ fun NexusMainContainer(viewModel: NexusViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(viewModel: NexusViewModel) {
+    var isSignUpMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     
+    val authError by viewModel.authError.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Box(
@@ -94,13 +96,13 @@ fun LoginScreen(viewModel: NexusViewModel) {
             // Header Content
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 40.dp)
+                modifier = Modifier.padding(top = 24.dp)
             ) {
                 // Secure E2EE Logo Badge
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(64.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                 ) {
@@ -108,16 +110,16 @@ fun LoginScreen(viewModel: NexusViewModel) {
                         imageVector = Icons.Default.Lock,
                         contentDescription = "Shield",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(42.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 Text(
                     text = "NEXUS SOHBET",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
+                    fontSize = 24.sp,
                     letterSpacing = 2.sp,
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = FontFamily.SansSerif
@@ -125,10 +127,10 @@ fun LoginScreen(viewModel: NexusViewModel) {
                 
                 Text(
                     text = "Uçtan Uca Şifreli Askeri Düzey Güvenlik",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
@@ -139,24 +141,44 @@ fun LoginScreen(viewModel: NexusViewModel) {
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = 8.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .padding(20.dp)
                         .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Güvenli Hesap Oluşturun",
+                        text = if (isSignUpMode) "Güvenli Hesap Oluşturun" else "Güvenli Oturum Açın",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
+                    // Error Alert Message Banner
+                    authError?.let { err ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = err,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(8.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { 
+                            email = it 
+                            viewModel.clearAuthError()
+                        },
                         label = { Text("E-posta Adresi") },
                         placeholder = { Text("ornek@nexus.com") },
                         leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
@@ -169,53 +191,82 @@ fun LoginScreen(viewModel: NexusViewModel) {
                         )
                     )
 
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Adınız Soyadınız") },
-                        placeholder = { Text("Ömer Çelik") },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                    if (isSignUpMode) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Adınız Soyadınız") },
+                            placeholder = { Text("Ömer Çelik") },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
 
-                    OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text("Telefon Numarası (İsteğe Bağlı)") },
-                        placeholder = { Text("+90 5XX XXX XX XX") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { phone = it },
+                            label = { Text("Telefon Numarası (İsteğe Bağlı)") },
+                            placeholder = { Text("+90 5XX XXX XX XX") },
+                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
 
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = { 
+                            password = it 
+                            viewModel.clearAuthError()
+                        },
                         label = { Text("Güvenli Şifre") },
                         leadingIcon = { Icon(Icons.Default.LockOpen, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Button(
                         onClick = {
-                            if (email.isNotEmpty() && name.isNotEmpty()) {
-                                keyboardController?.hide()
-                                viewModel.registerAndLogin(email, name, phone, password)
+                            keyboardController?.hide()
+                            if (isSignUpMode) {
+                                if (email.isNotEmpty() && name.isNotEmpty() && password.isNotEmpty()) {
+                                    viewModel.registerAndLogin(email, name, phone, password)
+                                }
+                            } else {
+                                if (email.isNotEmpty() && password.isNotEmpty()) {
+                                    viewModel.login(email, password)
+                                }
                             }
                         },
-                        enabled = email.isNotEmpty() && name.isNotEmpty(),
+                        enabled = if (isSignUpMode) (email.isNotEmpty() && name.isNotEmpty() && password.isNotEmpty()) else (email.isNotEmpty() && password.isNotEmpty()),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(48.dp)
                             .testTag("submit_button"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.Shield, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Güvenli Ağ Geçidiyle Kaydol", fontWeight = FontWeight.SemiBold)
+                        Text(if (isSignUpMode) "Güvenli Ağ Geçidiyle Kaydol" else "Askeri Güvenlikle Giriş Yap", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+
+                    // Mode Toggle Button
+                    TextButton(
+                        onClick = { 
+                            isSignUpMode = !isSignUpMode 
+                            viewModel.clearAuthError()
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(
+                            text = if (isSignUpMode) "Zaten bir hesabınız var mı? Giriş Yapın" else "Henüz bir hesabınız yok mu? Şimdi Kaydolun",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -408,32 +459,58 @@ fun HomeScreen(viewModel: NexusViewModel) {
         var friendName by remember { mutableStateOf("") }
         var friendEmail by remember { mutableStateOf("") }
         var friendPhone by remember { mutableStateOf("") }
+        
+        val addFriendError by viewModel.addFriendError.collectAsState()
 
         AlertDialog(
-            onDismissRequest = { showAddFriendDialog = false },
+            onDismissRequest = { 
+                showAddFriendDialog = false 
+                viewModel.clearAddFriendError()
+            },
             title = { Text("Yeni Şifreli Kişi Ekle") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Eklemek istediğiniz kişinin bilgilerini girin. Güvenlik anahtarı asimetrik olarak üretilecektir.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    
+                    addFriendError?.let { err ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = err,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(8.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = friendName,
                         onValueChange = { friendName = it },
-                        label = { Text("Kişi İsmi") },
+                        label = { Text("Kişi İsmi (İsteğe Bağlı)") },
+                        placeholder = { Text("Örn: Ayşe Yılmaz") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = friendEmail,
-                        onValueChange = { friendEmail = it },
-                        label = { Text("E-posta ID") },
-                        placeholder = { Text("arkadas@nexus.com") },
+                        onValueChange = { 
+                            friendEmail = it 
+                            viewModel.clearAddFriendError()
+                        },
+                        label = { Text("Kişi E-posta Adresi") },
+                        placeholder = { Text("ayse@nexus.com") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = friendPhone,
                         onValueChange = { friendPhone = it },
-                        label = { Text("Telefon Numarası") },
+                        label = { Text("Kişi Telefonu (İsteğe Bağlı)") },
                         placeholder = { Text("+90 532...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -443,18 +520,24 @@ fun HomeScreen(viewModel: NexusViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        if (friendName.isNotEmpty() && friendEmail.isNotEmpty()) {
-                            viewModel.addFriend(friendName, friendEmail, friendPhone)
-                            showAddFriendDialog = false
+                        if (friendEmail.isNotEmpty()) {
+                            viewModel.addFriend(friendName, friendEmail, friendPhone) {
+                                showAddFriendDialog = false
+                                viewModel.clearAddFriendError()
+                            }
                         }
                     },
+                    enabled = friendEmail.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Arka Plan Şifreli Ekle")
+                    Text("Şifreli Ağ Geçidinde Ara & Ekle")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddFriendDialog = false }) {
+                TextButton(onClick = { 
+                    showAddFriendDialog = false 
+                    viewModel.clearAddFriendError()
+                }) {
                     Text("İptal")
                 }
             }
@@ -873,45 +956,54 @@ fun SettingsAndSupportScreen(viewModel: NexusViewModel) {
     var showSupportTab by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Tab Headers inside Settings
+        // Modern Segmented Capsule Tab Bar (Anti-Overflow Layout)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Button(
-                onClick = { showSupportTab = false },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (!showSupportTab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (!showSupportTab) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Profil & Ayarlar")
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Button(
-                onClick = { showSupportTab = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (showSupportTab) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (showSupportTab) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .testTag("gemini_support_tab"),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Gemini Destek")
+            val tabs = listOf(
+                "Profil & Ayarlar" to Icons.Default.Settings,
+                "Gemini Destek" to Icons.Default.AutoAwesome
+            )
+            tabs.forEachIndexed { index, (label, icon) ->
+                val isSelected = (index == 1 && showSupportTab) || (index == 0 && !showSupportTab)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        .clickable { showSupportTab = (index == 1) }
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = label,
+                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
 
