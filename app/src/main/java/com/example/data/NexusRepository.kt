@@ -54,7 +54,7 @@ class NexusRepository(private val db: NexusDatabase) {
     // --- Messages ---
     fun getMessagesForChatFlow(chatId: String): Flow<List<MessageEntity>> = messageDao.getMessagesForChatFlow(chatId)
 
-    suspend fun insertMessage(message: MessageEntity) = withContext(Dispatchers.IO) {
+    suspend fun insertMessage(message: MessageEntity): Long = withContext(Dispatchers.IO) {
         messageDao.insertMessage(message)
     }
 

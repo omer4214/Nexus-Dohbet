@@ -157,14 +157,51 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                 emailOrPhone = emailOrPhone,
                 name = name,
                 phoneNumber = phone,
-                statusText = "Nexus ile şifrelendi 🛡️",
+                statusText = "Bağlantı isteği onay bekliyor... ⏳",
                 isOnline = true,
                 isBlocked = false,
                 isReported = false,
                 profileColorHex = listOf("#E91E63", "#4CAF50", "#2196F3", "#9C27B0", "#FFC107").random(),
-                lastSeenTime = "Çevrimiçi"
+                lastSeenTime = "Çevrimiçi",
+                isPendingApproval = true
             )
             repository.insertContact(newFriend)
+        }
+    }
+
+    fun acceptFriendRequest(contactId: String, customizedName: String) {
+        viewModelScope.launch {
+            val contact = contacts.value.find { it.emailOrPhone == contactId } ?: return@launch
+            val updatedContact = contact.copy(
+                name = customizedName,
+                isPendingApproval = false,
+                statusText = "Nexus ile şifreli hat aktif 7/24 🛡️"
+            )
+            repository.insertContact(updatedContact)
+            if (_activeChatContact.value?.emailOrPhone == contactId) {
+                _activeChatContact.value = updatedContact
+            }
+            // Insert a greeting system message in chat
+            val aesKey = _currentUser.value?.aesSessionKey ?: "NexusSharedDemoKey"
+            val welcomeMsg = MessageEntity(
+                chatId = contactId,
+                senderEmail = "system",
+                recipientEmail = "self",
+                plainContent = "✅ Güvenli bağlantı onaylandı! Arkadaşınızla asimetrik RSA & AES-128 anahtarları başarıyla değiş tokuş edildi. Adı '$customizedName' olarak ayarlandı.",
+                encryptedPayload = CryptoHelper.encrypt("System Welcome Connection Approval Message", aesKey),
+                status = "Read",
+                contentType = "text"
+            )
+            repository.insertMessage(welcomeMsg)
+        }
+    }
+
+    fun rejectFriendRequest(contactId: String) {
+        viewModelScope.launch {
+            repository.deleteContact(contactId)
+            if (_activeChatContact.value?.emailOrPhone == contactId) {
+                _activeChatContact.value = null
+            }
         }
     }
 
@@ -239,16 +276,17 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         viewModelScope.launch {
-            repository.insertMessage(newMessage)
+            val insertedId = repository.insertMessage(newMessage)
+            val savedMessage = newMessage.copy(id = insertedId)
             
-            // Simulating ticking checks (Sent -> Delivered -> Read)
-            delay(800)
-            repository.insertMessage(newMessage.copy(status = "Delivered"))
-            delay(1000)
-            repository.insertMessage(newMessage.copy(status = "Read"))
+            // Simulating ticking checks (Sent -> Delivered -> Read) on the SAME message ID
+            delay(500)
+            repository.insertMessage(savedMessage.copy(status = "Delivered"))
+            delay(500)
+            repository.insertMessage(savedMessage.copy(status = "Read"))
 
             // Trigger beautiful simulated automated reply from contact to make the app feel interactive
-            delay(1200)
+            delay(1000)
             triggerSimulatedReply(active, content)
         }
     }
@@ -267,6 +305,7 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         val responseContent = when {
+            fromContact.isPendingApproval -> "Görünüşe göre güvenli bağlantımız henüz onaylanmamış! Mesajını aldım fakat şifreli el sıkışmayı (handshake) tamamlamak için yukarıdaki 'Arkadaşlığı Kabul Et' butonuna tıklamalısın. Kabul edince bana isim verebilirsin! 😊"
             userPrompt.contains("merhaba", ignoreCase = true) -> "Merhaba! Nexus şifreli hattımız 7/24 aktif."
             userPrompt.contains("resim", ignoreCase = true) || userPrompt.contains("foto", ignoreCase = true) -> "Resim sorunsuz aktarıldı, şifreli galerime kaydedildi! 📱"
             userPrompt.contains("ses", ignoreCase = true) -> "Gönderdiğin ses kaydını pürüzsüz dinledim, mükemmel netlik! 🔊"

@@ -1271,7 +1271,10 @@ fun SupportScreen(viewModel: NexusViewModel) {
 fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
     val messages by viewModel.activeChatMessages.collectAsState()
     val currentCallState by viewModel.activeCallState.collectAsState()
-    val isBlocked = contact.isBlocked
+    
+    val contactsList by viewModel.contacts.collectAsState()
+    val currentContact = contactsList.find { it.emailOrPhone == contact.emailOrPhone } ?: contact
+    val isBlocked = currentContact.isBlocked
     
     var inputText by remember { mutableStateOf("") }
     val lazyListState = rememberLazyListState()
@@ -1299,8 +1302,8 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable { showDropdownMenu = true }
                     ) {
-                        val avatarColor = remember(contact.profileColorHex) {
-                            try { Color(android.graphics.Color.parseColor(contact.profileColorHex)) } catch(e: Exception) { PrimaryTeal }
+                        val avatarColor = remember(currentContact.profileColorHex) {
+                            try { Color(android.graphics.Color.parseColor(currentContact.profileColorHex)) } catch(e: Exception) { PrimaryTeal }
                         }
                         Box(
                             contentAlignment = Alignment.Center,
@@ -1309,17 +1312,17 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                 .clip(CircleShape)
                                 .background(avatarColor)
                         ) {
-                            Text(contact.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(currentContact.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
 
                         Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
-                            Text(contact.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(currentContact.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Text(
-                                text = if (isBlocked) "Engellendi" else if (contact.isOnline) "Çevrimiçi" else contact.lastSeenTime,
+                                text = if (isBlocked) "Engellendi" else if (currentContact.isOnline) "Çevrimiçi" else currentContact.lastSeenTime,
                                 fontSize = 11.sp,
-                                color = if (contact.isOnline && !isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (currentContact.isOnline && !isBlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1354,7 +1357,7 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                 text = { Text(if (isBlocked) "Engeli Kaldır" else "Kullanıcıyı Engelle") },
                                 onClick = {
                                     showDropdownMenu = false
-                                    viewModel.blockContact(contact.emailOrPhone, !isBlocked)
+                                    viewModel.blockContact(currentContact.emailOrPhone, !isBlocked)
                                 },
                                 leadingIcon = { Icon(Icons.Default.Block, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                             )
@@ -1370,7 +1373,7 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                 text = { Text("Sohbeti Temizle") },
                                 onClick = {
                                     showDropdownMenu = false
-                                    viewModel.clearChat(contact.emailOrPhone)
+                                    viewModel.clearChat(currentContact.emailOrPhone)
                                 },
                                 leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) }
                             )
@@ -1387,6 +1390,115 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                 .padding(innerPadding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                if (currentContact.isPendingApproval) {
+                    var showAcceptDialog by remember { mutableStateOf(false) }
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Yeni Bağlantı İsteği",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "${currentContact.name} sizinle uçtan uca şifreli (E2EE) bir güvenli sohbet oturumu kurmak istiyor. Bu isteği onaylamayı veya silmeyi belirtebilirsiniz.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { showAcceptDialog = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Onayla & Ekle", fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { viewModel.rejectFriendRequest(currentContact.emailOrPhone) },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Kabul Etme", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    if (showAcceptDialog) {
+                        var customizedName by remember { mutableStateOf(currentContact.name) }
+                        AlertDialog(
+                            onDismissRequest = { showAcceptDialog = false },
+                            title = { Text("Bağlantı Takma Adı Belirle") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Bu arkadaşın rehberinizde hangi isimle görünmesini istersiniz?", fontSize = 13.sp)
+                                    OutlinedTextField(
+                                        value = customizedName,
+                                        onValueChange = { customizedName = it },
+                                        label = { Text("Arkadaşın Adı") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        if (customizedName.trim().isNotEmpty()) {
+                                            viewModel.acceptFriendRequest(currentContact.emailOrPhone, customizedName.trim())
+                                            showAcceptDialog = false
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("Onayla ve Kaydet")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showAcceptDialog = false }) {
+                                    Text("Vazgeç")
+                                }
+                            }
+                        )
+                    }
+                }
+
                 // Main body containing list of messages
                 LazyColumn(
                     state = lazyListState,
@@ -1565,6 +1677,18 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                             )
                                             if (isSelf) {
                                                 Spacer(modifier = Modifier.width(4.dp))
+                                                val statusText = when (msg.status) {
+                                                    "Sent" -> "Gönderildi"
+                                                    "Delivered" -> "İletildi"
+                                                    "Read" -> "Okundu"
+                                                    else -> ""
+                                                }
+                                                Text(
+                                                    text = statusText,
+                                                    fontSize = 8.sp,
+                                                    color = Color.White.copy(alpha = 0.7f)
+                                                )
+                                                Spacer(modifier = Modifier.width(2.dp))
                                                 Icon(
                                                     imageVector = when (msg.status) {
                                                         "Sent" -> Icons.Default.Check

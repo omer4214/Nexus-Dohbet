@@ -27,7 +27,8 @@ data class ContactEntity(
     val isBlocked: Boolean,
     val isReported: Boolean,
     val profileColorHex: String,
-    val lastSeenTime: String
+    val lastSeenTime: String,
+    val isPendingApproval: Boolean = false
 )
 
 // --- 3. MESSAGE ENTITY (E2EE) ---
@@ -113,7 +114,7 @@ interface MessageDao {
     fun getMessagesForChatFlow(chatId: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: MessageEntity)
+    suspend fun insertMessage(message: MessageEntity): Long
 
     @Query("DELETE FROM messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: Long)
