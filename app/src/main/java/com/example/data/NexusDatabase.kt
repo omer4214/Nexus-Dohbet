@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         CallHistoryEntity::class,
         AccountEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class NexusDatabase : RoomDatabase() {

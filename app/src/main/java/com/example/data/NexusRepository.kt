@@ -46,27 +46,31 @@ class NexusRepository(private val db: NexusDatabase) {
         userDao.updateDetails(email, name, phone)
     }
 
+    suspend fun updateDetailsFull(email: String, name: String, phone: String, bio: String, statusMsg: String, avatarColor: String, avatarIndex: Int) = withContext(Dispatchers.IO) {
+        userDao.updateDetailsFull(email, name, phone, bio, statusMsg, avatarColor, avatarIndex)
+    }
+
     // --- Contacts ---
-    val allContactsFlow: Flow<List<ContactEntity>> = contactDao.getAllContactsFlow()
+    fun getAllContactsFlow(ownerEmail: String): Flow<List<ContactEntity>> = contactDao.getAllContactsFlow(ownerEmail)
 
     suspend fun insertContact(contact: ContactEntity) = withContext(Dispatchers.IO) {
         contactDao.insertContact(contact)
     }
 
-    suspend fun updateBlockedStatus(id: String, blocked: Boolean) = withContext(Dispatchers.IO) {
-        contactDao.updateBlockedStatus(id, blocked)
+    suspend fun updateBlockedStatus(ownerEmail: String, id: String, blocked: Boolean) = withContext(Dispatchers.IO) {
+        contactDao.updateBlockedStatus(ownerEmail, id, blocked)
     }
 
-    suspend fun updateReportedStatus(id: String, reported: Boolean) = withContext(Dispatchers.IO) {
-        contactDao.updateReportedStatus(id, reported)
+    suspend fun updateReportedStatus(ownerEmail: String, id: String, reported: Boolean) = withContext(Dispatchers.IO) {
+        contactDao.updateReportedStatus(ownerEmail, id, reported)
     }
 
-    suspend fun deleteContact(id: String) = withContext(Dispatchers.IO) {
-        contactDao.deleteContact(id)
+    suspend fun deleteContact(ownerEmail: String, id: String) = withContext(Dispatchers.IO) {
+        contactDao.deleteContact(ownerEmail, id)
     }
 
     // --- Messages ---
-    fun getMessagesForChatFlow(chatId: String): Flow<List<MessageEntity>> = messageDao.getMessagesForChatFlow(chatId)
+    fun getMessagesForChatFlow(userEmail: String, contactEmail: String): Flow<List<MessageEntity>> = messageDao.getMessagesForChatFlow(userEmail, contactEmail)
 
     suspend fun insertMessage(message: MessageEntity): Long = withContext(Dispatchers.IO) {
         messageDao.insertMessage(message)
@@ -113,10 +117,11 @@ class NexusRepository(private val db: NexusDatabase) {
             accountDao.insertAccount(acc)
         }
 
-        // Seed a pending incoming friend request from Mehmet to show off approval flows
-        val existing = db.contactDao().getAllContactsFlow().firstOrNull() ?: emptyList()
+        // Seed a pending incoming friend request from Mehmet to show off approval flows for the default demo profile
+        val existing = db.contactDao().getAllContactsFlow("56celikomer@gmail.com").firstOrNull() ?: emptyList()
         if (existing.isEmpty()) {
             val pendingFromMehmet = ContactEntity(
+                ownerEmail = "56celikomer@gmail.com",
                 emailOrPhone = "mehmet@nexus.com",
                 name = "Mehmet Yıldız",
                 phoneNumber = "+90 (544) 444 55 66",

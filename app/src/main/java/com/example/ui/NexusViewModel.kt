@@ -68,7 +68,14 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     val currentTab = mutableStateOf(0)
 
     // Conversations lists & queries
-    val contacts: StateFlow<List<ContactEntity>> = repository.allContactsFlow
+    val contacts: StateFlow<List<ContactEntity>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null) {
+                repository.getAllContactsFlow(user.email)
+            } else {
+                flowOf(emptyList())
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val communities: StateFlow<List<CommunityEntity>> = repository.allCommunitiesFlow
@@ -81,11 +88,12 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeChatContact = MutableStateFlow<ContactEntity?>(null)
     val activeChatContact: StateFlow<ContactEntity?> = _activeChatContact.asStateFlow()
 
-    // Get messages flow for currently active chat
+    // Get messages flow for currently active chat (using bidirectional search)
     val activeChatMessages: StateFlow<List<MessageEntity>> = _activeChatContact
         .flatMapLatest { contact ->
-            if (contact != null) {
-                repository.getMessagesForChatFlow(contact.emailOrPhone)
+            val currentUserEmail = _currentUser.value?.email ?: ""
+            if (contact != null && currentUserEmail.isNotEmpty()) {
+                repository.getMessagesForChatFlow(currentUserEmail, contact.emailOrPhone)
             } else {
                 flowOf(emptyList())
             }
@@ -197,6 +205,15 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateProfileDetailsFull(name: String, phone: String, bio: String, statusMessage: String, avatarColorHex: String, avatarIndex: Int) {
+        val email = _currentUser.value?.email ?: return
+        viewModelScope.launch {
+            repository.updateDetailsFull(email, name, phone, bio, statusMessage, avatarColorHex, avatarIndex)
+            val updated = repository.getProfileDirect()
+            _currentUser.value = updated
+        }
+    }
+
     fun setTheme(theme: String) {
         _selectedTheme.value = theme
         val email = _currentUser.value?.email ?: return
@@ -211,47 +228,94 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addFriend(name: String, emailOrPhone: String, phone: String, onSuccess: () -> Unit) {
+        val current = _currentUser.value ?: return
         viewModelScope.launch {
             _addFriendError.value = null
-            val account = repository.getAccountByEmail(emailOrPhone.trim())
+            val friendEmail = emailOrPhone.trim()
+            val account = repository.getAccountByEmail(friendEmail)
             if (account == null) {
                 _addFriendError.value = "Hata: Girdiğiniz e-posta adresi Nexus ağ geçidinde bulunamadı! Lütfen kayıtlı bir e-posta adresi yazıp tekrar deneyin."
                 return@launch
             }
 
-            // Create outbound connection: isPendingApproval = false so WE do not see the accept dialog
+            if (friendEmail.equals(current.email, ignoreCase = true)) {
+                _addFriendError.value = "Hata: Kendinizi arkadaş olarak ekleyemezsiniz!"
+                return@launch
+            }
+
+            // Create outbound connection for SENDER (us): we don't see accept dialog
             val isOnline = listOf(true, false).random()
-            val newFriend = ContactEntity(
-                emailOrPhone = emailOrPhone.trim(),
+            val newOutboundFriend = ContactEntity(
+                ownerEmail = current.email,
+                emailOrPhone = account.email,
                 name = name.ifEmpty { account.fullName },
                 phoneNumber = phone.ifEmpty { account.phoneNumber },
-                statusText = if (isOnline) "Çevrimiçi" else "Sohbeti başlatmak için bir mesaj gönderin... 🔒",
+                statusText = "Giden bağlantı talebi iletildi... ⏳",
                 isOnline = isOnline,
                 isBlocked = false,
                 isReported = false,
                 profileColorHex = listOf("#E91E63", "#4CAF50", "#2196F3", "#9C27B0", "#FFC107").random(),
                 lastSeenTime = if (isOnline) "Çevrimiçi" else "Son görülme bugün " + listOf("09:15", "11:42", "14:20", "18:05", "20:50").random(),
-                isPendingApproval = false // Sent request is already accepted on our side, no need to show approval card for ourselves!
+                isPendingApproval = false // We sent it, so we don't need to approve it
             )
-            repository.insertContact(newFriend)
+            repository.insertContact(newOutboundFriend)
+
+            // Create inbound connection for RECIPIENT (them): they will see pending accept dialog!
+            val newInboundFriend = ContactEntity(
+                ownerEmail = account.email,
+                emailOrPhone = current.email,
+                name = current.fullName,
+                phoneNumber = current.phoneNumber,
+                statusText = "Sizinle şifreli bağlantı kurmak istiyor... ⚡",
+                isOnline = true,
+                isBlocked = false,
+                isReported = false,
+                profileColorHex = listOf("#00A884", "#3F51B5", "#FF5722", "#00BCD4").random(),
+                lastSeenTime = "Çevrimiçi",
+                isPendingApproval = true // IMPORTANT: They must approve our request!
+            )
+            repository.insertContact(newInboundFriend)
+
             onSuccess()
         }
     }
 
     fun acceptFriendRequest(contactId: String, customizedName: String) {
+        val current = _currentUser.value ?: return
         viewModelScope.launch {
             val contact = contacts.value.find { it.emailOrPhone == contactId } ?: return@launch
-            val updatedContact = contact.copy(
+            
+            // 1. Update our view of this friend (no longer pending)
+            val updatedContactSelf = contact.copy(
+                ownerEmail = current.email,
                 name = customizedName,
                 isPendingApproval = false,
                 statusText = "Nexus ile şifreli hat aktif 7/24 🛡️"
             )
-            repository.insertContact(updatedContact)
+            repository.insertContact(updatedContactSelf)
+            
+            // 2. Also update their view of us (mutual connection approved)
+            val updatedContactOther = ContactEntity(
+                ownerEmail = contactId,
+                emailOrPhone = current.email,
+                name = current.fullName,
+                phoneNumber = current.phoneNumber,
+                statusText = "Bağlantı isteğiniz kabul edildi! 🔒",
+                isOnline = true,
+                isBlocked = false,
+                isReported = false,
+                profileColorHex = "#2196F3",
+                lastSeenTime = "Çevrimiçi",
+                isPendingApproval = false
+            )
+            repository.insertContact(updatedContactOther)
+
             if (_activeChatContact.value?.emailOrPhone == contactId) {
-                _activeChatContact.value = updatedContact
+                _activeChatContact.value = updatedContactSelf
             }
+
             // Insert a greeting system message in chat
-            val aesKey = _currentUser.value?.aesSessionKey ?: "NexusSharedDemoKey"
+            val aesKey = current.aesSessionKey
             val welcomeMsg = MessageEntity(
                 chatId = contactId,
                 senderEmail = "system",
@@ -266,8 +330,9 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rejectFriendRequest(contactId: String) {
+        val current = _currentUser.value ?: return
         viewModelScope.launch {
-            repository.deleteContact(contactId)
+            repository.deleteContact(current.email, contactId)
             if (_activeChatContact.value?.emailOrPhone == contactId) {
                 _activeChatContact.value = null
             }
@@ -275,8 +340,9 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun blockContact(contactId: String, blocked: Boolean) {
+        val current = _currentUser.value ?: return
         viewModelScope.launch {
-            repository.updateBlockedStatus(contactId, blocked)
+            repository.updateBlockedStatus(current.email, contactId, blocked)
             // Update active cached contact if blocked
             val active = _activeChatContact.value
             if (active?.emailOrPhone == contactId) {
@@ -298,10 +364,11 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reportContact(contactId: String, reason: String) {
+        val current = _currentUser.value ?: return
         viewModelScope.launch {
-            repository.updateReportedStatus(contactId, true)
+            repository.updateReportedStatus(current.email, contactId, true)
             // Insert systematic alert message in chat
-            val aesKey = _currentUser.value?.aesSessionKey ?: "NexusSharedDemoKey"
+            val aesKey = current.aesSessionKey
             val noticeMsg = MessageEntity(
                 chatId = contactId,
                 senderEmail = "system",
@@ -354,16 +421,17 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                 val deliveredMsg = savedMessage.copy(status = "Delivered")
                 repository.insertMessage(deliveredMsg)
                 
-                // If auto replies are active, they read it and respond
+                delay(1000)
+                val readMsg = deliveredMsg.copy(status = "Read")
+                repository.insertMessage(readMsg)
+                
+                // If auto replies are active, they respond back textually
                 if (_enableAutoReplies.value) {
-                    delay(1000)
-                    repository.insertMessage(deliveredMsg.copy(status = "Read"))
-                    
                     delay(1200)
                     triggerSimulatedReply(active, content)
                 }
             } else {
-                // Offline recipient: bleibt bei 'Sent' status (tek gri tik) -> exceptionally realistic!
+                // Offline recipient: stays at 'Sent' status (single tick) -> exceptionally realistic!
             }
         }
     }

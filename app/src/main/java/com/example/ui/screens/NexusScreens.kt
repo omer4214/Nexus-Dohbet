@@ -4,9 +4,11 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1030,8 +1033,17 @@ fun SettingsAndSupportScreen(viewModel: NexusViewModel) {
 fun UserProfileOptions(user: com.example.data.ProfileEntity, selectedTheme: String, viewModel: NexusViewModel) {
     var editName by remember { mutableStateOf(user.fullName) }
     var editPhone by remember { mutableStateOf(user.phoneNumber) }
+    var editBio by remember { mutableStateOf(user.bio) }
+    var editStatusMessage by remember { mutableStateOf(user.statusMessage) }
+    var editAvatarColor by remember { mutableStateOf(user.avatarColorHex) }
+    var editAvatarIndex by remember { mutableStateOf(user.avatarIndex) }
     
     var isEditing by remember { mutableStateOf(false) }
+
+    // Colors mapping to beautiful theme circles
+    val avatarColors = listOf("#00A884", "#2196F3", "#9C27B0", "#FF9800", "#E91E63", "#4CAF50")
+    // Beautiful preset status indicators
+    val statusPresets = listOf("Müsait", "Çevrimiçi 🛡️", "Meşgul", "Yalnızca Güvenli Arama", "Kripto Analizde 📡", "Siber Nöbette")
 
     LazyColumn(
         modifier = Modifier
@@ -1039,7 +1051,332 @@ fun UserProfileOptions(user: com.example.data.ProfileEntity, selectedTheme: Stri
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // User primary credential card
+        // Visual Profile Card Showing Current Layout
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val activeColor = remember(user.avatarColorHex) {
+                        try { Color(android.graphics.Color.parseColor(user.avatarColorHex)) } catch(e: Exception) { PrimaryTeal }
+                    }
+
+                    // Avatar Circle Display
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(activeColor)
+                    ) {
+                        val avatarIcon = when (user.avatarIndex) {
+                            1 -> Icons.Default.Lock
+                            2 -> Icons.Default.Settings
+                            3 -> Icons.Default.Android
+                            else -> Icons.Default.Person
+                        }
+                        Icon(
+                            imageVector = avatarIcon,
+                            contentDescription = "Profil Resmi",
+                            tint = Color.White,
+                            modifier = Modifier.size(42.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = user.fullName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Text(
+                        text = user.email,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Bio display
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Biyografi: ",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = user.bio,
+                            fontSize = 11.sp,
+                            fontStyle = FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Status message display
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Presence green dot
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF00E676))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = user.statusMessage,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // Configuration and profile editing card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Kullanıcı Profilini Düzenle", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        
+                        if (!isEditing) {
+                            IconButton(onClick = { isEditing = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Düzenle", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    if (isEditing) {
+                        // 1. Full Name Input
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text("Ad Soyad (Kullanıcı Adı)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
+                        )
+
+                        // 2. Status Message
+                        OutlinedTextField(
+                            value = editStatusMessage,
+                            onValueChange = { editStatusMessage = it },
+                            label = { Text("Durum Mesajı") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Örn: Meşgul") }
+                        )
+
+                        // Status presets selectors row
+                        Column {
+                            Text("Hızlı Durum Seçiçiler:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(statusPresets) { status ->
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .clickable { editStatusMessage = status }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(status, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Biography Input
+                        OutlinedTextField(
+                            value = editBio,
+                            onValueChange = { editBio = it },
+                            label = { Text("Hakkımda / Biyografi") },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 2,
+                            placeholder = { Text("Siber güvenlik, veri kriptoloji uzmanı...") }
+                        )
+
+                        // 4. Phone Number Input
+                        OutlinedTextField(
+                            value = editPhone,
+                            onValueChange = { editPhone = it },
+                            label = { Text("Telefon Numarası") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // 5. Select Profile Color
+                        Column {
+                            Text("Profil Teması ve Rengi:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                avatarColors.forEach { cHex ->
+                                    val isColorSelected = editAvatarColor.equals(cHex, ignoreCase = true)
+                                    val cVal = Color(android.graphics.Color.parseColor(cHex))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(cVal)
+                                            .clickable { editAvatarColor = cHex }
+                                            .border(
+                                                width = if (isColorSelected) 3.dp else 0.dp,
+                                                color = if (isColorSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                shape = CircleShape
+                                            )
+                                    )
+                                }
+                            }
+                        }
+
+                        // 6. Select Profile Avatar Icon
+                        Column {
+                            Text("Profil Avatar İkonu:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                listOf(
+                                    0 to Icons.Default.Person,
+                                    1 to Icons.Default.Lock,
+                                    2 to Icons.Default.Settings,
+                                    3 to Icons.Default.Android
+                                ).forEach { (index, icon) ->
+                                    val isIconSelected = editAvatarIndex == index
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isIconSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable { editAvatarIndex = index }
+                                            .padding(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (isIconSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Save / Cancel Row
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            TextButton(onClick = { 
+                                isEditing = false 
+                                editName = user.fullName
+                                editPhone = user.phoneNumber
+                                editBio = user.bio
+                                editStatusMessage = user.statusMessage
+                                editAvatarColor = user.avatarColorHex
+                                editAvatarIndex = user.avatarIndex
+                            }) {
+                                Text("İptal")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (editName.isNotEmpty()) {
+                                        viewModel.updateProfileDetailsFull(
+                                            name = editName,
+                                            phone = editPhone,
+                                            bio = editBio,
+                                            statusMessage = editStatusMessage,
+                                            avatarColorHex = editAvatarColor,
+                                            avatarIndex = editAvatarIndex
+                                        )
+                                        isEditing = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Bilgileri Kaydet")
+                            }
+                        }
+                    } else {
+                        // Display Current Info
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Telefon Numarası", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(user.phoneNumber.ifEmpty { "Eklenmedi" }, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                }
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+
+                            Column {
+                                Text("Hakkımda / Biyografi", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(user.bio, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+
+                            Column {
+                                Text("Durum Mesajı", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(user.statusMessage, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Symmetric AES Cryptology Credentials Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1048,98 +1385,16 @@ fun UserProfileOptions(user: com.example.data.ProfileEntity, selectedTheme: Stri
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                        ) {
-                            Icon(Icons.Default.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(user.fullName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                            Text(user.email, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    Text("Askeri Kriptolojik Parametreler", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Symmetric AES Anahtarı (Uçtan Uca):", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Symmetric AES Anahtarı (Ortak Gizli Sır):", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(user.aesSessionKey, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = SignalGold)
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text("E2EE Public Key Model:", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("E2EE RSA Açık Anahtarı (Public Key):", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(user.rsaPublicKey, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-
-        // Profile details edits containing Phone and Email details
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Bilgilerinizi Güncelleyin", fontWeight = FontWeight.Bold)
-
-                    if (isEditing) {
-                        OutlinedTextField(
-                            value = editName,
-                            onValueChange = { editName = it },
-                            label = { Text("Yeni İsim") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = editPhone,
-                            onValueChange = { editPhone = it },
-                            label = { Text("Yeni Telefon Numarası") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Row(
-                            horizontalArrangement = Arrangement.End,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            TextButton(onClick = { isEditing = false }) {
-                                Text("İptal")
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    viewModel.updateProfileDetails(editName, editPhone)
-                                    isEditing = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Text("Kaydet")
-                            }
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Telefon Numarası", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(user.phoneNumber.ifEmpty { "Eklenmedi" }, fontWeight = FontWeight.Medium)
-                            }
-
-                            IconButton(onClick = { isEditing = true }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Düzenle", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
                 }
             }
         }

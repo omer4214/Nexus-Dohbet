@@ -13,13 +13,18 @@ data class ProfileEntity(
     val themeChoice: String, // "Light", "Dark", "System"
     val rsaPrivateKey: String,
     val rsaPublicKey: String,
-    val aesSessionKey: String
+    val aesSessionKey: String,
+    val bio: String = "Siber güvenlik uzmanı, Nexus korumalı.",
+    val statusMessage: String = "Müsait",
+    val avatarColorHex: String = "#00A884",
+    val avatarIndex: Int = 0
 )
 
 // --- 2. CONTACT / FRIEND ENTITY ---
-@Entity(tableName = "contacts")
+@Entity(tableName = "contacts", primaryKeys = ["ownerEmail", "emailOrPhone"])
 data class ContactEntity(
-    @PrimaryKey val emailOrPhone: String,
+    val ownerEmail: String,
+    val emailOrPhone: String,
     val name: String,
     val phoneNumber: String,
     val statusText: String,
@@ -88,30 +93,33 @@ interface UserDao {
 
     @Query("UPDATE user_profile SET fullName = :name, phoneNumber = :phone WHERE email = :email")
     suspend fun updateDetails(email: String, name: String, phone: String)
+
+    @Query("UPDATE user_profile SET fullName = :name, phoneNumber = :phone, bio = :bio, statusMessage = :statusMsg, avatarColorHex = :avatarColor, avatarIndex = :avatarIndex WHERE email = :email")
+    suspend fun updateDetailsFull(email: String, name: String, phone: String, bio: String, statusMsg: String, avatarColor: String, avatarIndex: Int)
 }
 
 @Dao
 interface ContactDao {
-    @Query("SELECT * FROM contacts ORDER BY isOnline DESC, name ASC")
-    fun getAllContactsFlow(): Flow<List<ContactEntity>>
+    @Query("SELECT * FROM contacts WHERE ownerEmail = :ownerEmail ORDER BY isOnline DESC, name ASC")
+    fun getAllContactsFlow(ownerEmail: String): Flow<List<ContactEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertContact(contact: ContactEntity)
 
-    @Query("UPDATE contacts SET isBlocked = :blocked WHERE emailOrPhone = :id")
-    suspend fun updateBlockedStatus(id: String, blocked: Boolean)
+    @Query("UPDATE contacts SET isBlocked = :blocked WHERE ownerEmail = :ownerEmail AND emailOrPhone = :id")
+    suspend fun updateBlockedStatus(ownerEmail: String, id: String, blocked: Boolean)
 
-    @Query("UPDATE contacts SET isReported = :reported WHERE emailOrPhone = :id")
-    suspend fun updateReportedStatus(id: String, reported: Boolean)
+    @Query("UPDATE contacts SET isReported = :reported WHERE ownerEmail = :ownerEmail AND emailOrPhone = :id")
+    suspend fun updateReportedStatus(ownerEmail: String, id: String, reported: Boolean)
 
-    @Query("DELETE FROM contacts WHERE emailOrPhone = :id")
-    suspend fun deleteContact(id: String)
+    @Query("DELETE FROM contacts WHERE ownerEmail = :ownerEmail AND emailOrPhone = :id")
+    suspend fun deleteContact(ownerEmail: String, id: String)
 }
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp ASC")
-    fun getMessagesForChatFlow(chatId: String): Flow<List<MessageEntity>>
+    @Query("SELECT * FROM messages WHERE (senderEmail = :userEmail AND recipientEmail = :contactEmail) OR (senderEmail = :contactEmail AND recipientEmail = :userEmail) ORDER BY timestamp ASC")
+    fun getMessagesForChatFlow(userEmail: String, contactEmail: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity): Long
@@ -155,10 +163,10 @@ data class AccountEntity(
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM nexus_accounts WHERE email = :email LIMIT 1")
+    @Query("SELECT * FROM nexus_accounts WHERE LOWER(email) = LOWER(:email) LIMIT 1")
     suspend fun getAccountByEmail(email: String): AccountEntity?
 
-    @Query("SELECT * FROM nexus_accounts WHERE email = :email AND passwordHash = :password LIMIT 1")
+    @Query("SELECT * FROM nexus_accounts WHERE LOWER(email) = LOWER(:email) AND passwordHash = :password LIMIT 1")
     suspend fun authenticate(email: String, password: String): AccountEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
