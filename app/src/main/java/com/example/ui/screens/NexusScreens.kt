@@ -316,6 +316,7 @@ fun HomeScreen(viewModel: NexusViewModel) {
     val syncState by viewModel.syncState.collectAsState()
     
     var showAddFriendDialog by remember { mutableStateOf(false) }
+    var showGeminiSupportDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -344,11 +345,11 @@ fun HomeScreen(viewModel: NexusViewModel) {
                         enabled = syncState is NexusViewModel.SyncStatus.Idle
                     ) {
                         if (syncState is NexusViewModel.SyncStatus.Syncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                             CircularProgressIndicator(
+                                 modifier = Modifier.size(20.dp),
+                                 strokeWidth = 2.dp,
+                                 color = MaterialTheme.colorScheme.primary
+                             )
                         } else {
                             Icon(Icons.Default.CloudQueue, contentDescription = "Bulut Eşitle", tint = MaterialTheme.colorScheme.onSurface)
                         }
@@ -404,13 +405,45 @@ fun HomeScreen(viewModel: NexusViewModel) {
             }
         },
         floatingActionButton = {
-            if (tabIndex == 0 || tabIndex == 1) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Gemini Support FAB (WhatsApp style green circle with Gemini AutoAwesome logo icon)
                 FloatingActionButton(
-                    onClick = { showAddFriendDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
+                    onClick = { showGeminiSupportDialog = true },
+                    containerColor = Color(0xFF00A884), // WhatsApp green
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .testTag("gemini_support_fab")
                 ) {
-                    Icon(Icons.Default.PersonAdd, contentDescription = "Arkadaş Ekle")
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Gemini Destek",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Add Friend FAB
+                if (tabIndex == 0 || tabIndex == 1) {
+                    FloatingActionButton(
+                        onClick = { showAddFriendDialog = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("add_friend_fab")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = "Arkadaş Ekle",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -545,6 +578,91 @@ fun HomeScreen(viewModel: NexusViewModel) {
                 }
             }
         )
+    }
+
+    if (showGeminiSupportDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showGeminiSupportDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Custom Premium Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF00A884),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Gemini Yapay Zeka Destek",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Clear history button
+                            IconButton(
+                                onClick = { viewModel.clearSupportChat() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = "Sohbeti Temizle",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // Close button
+                            IconButton(
+                                onClick = { showGeminiSupportDialog = false },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Kapat",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    )
+                    
+                    // Support screen contents
+                    Box(modifier = Modifier.weight(1f)) {
+                        SupportScreen(viewModel = viewModel)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -956,75 +1074,18 @@ fun SettingsAndSupportScreen(viewModel: NexusViewModel) {
     val currentUser by viewModel.currentUser.collectAsState()
     val selectedTheme by viewModel.selectedTheme.collectAsState()
 
-    var showSupportTab by remember { mutableStateOf(false) }
-
     Column(modifier = Modifier.fillMaxSize()) {
-        // Modern Segmented Capsule Tab Bar (Anti-Overflow Layout)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val tabs = listOf(
-                "Profil & Ayarlar" to Icons.Default.Settings,
-                "Gemini Destek" to Icons.Default.AutoAwesome
-            )
-            tabs.forEachIndexed { index, (label, icon) ->
-                val isSelected = (index == 1 && showSupportTab) || (index == 0 && !showSupportTab)
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                        .clickable { showSupportTab = (index == 1) }
-                        .padding(horizontal = 4.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = label,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-
-        if (showSupportTab) {
-            SupportScreen(viewModel = viewModel)
+        // PROFILE & GENERAL OPTIONS SETTINGS SCREEN
+        if (currentUser != null) {
+            UserProfileOptions(user = currentUser!!, selectedTheme = selectedTheme, viewModel = viewModel)
         } else {
-            // PROFILE & GENERAL OPTIONS SETTINGS SCREEN
-            if (currentUser != null) {
-                UserProfileOptions(user = currentUser!!, selectedTheme = selectedTheme, viewModel = viewModel)
-            } else {
-                Text(
-                    text = "Lütfen önce giriş yapın.",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(40.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+            Text(
+                text = "Lütfen önce giriş yapın.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(40.dp),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -1438,47 +1499,6 @@ fun UserProfileOptions(user: com.example.data.ProfileEntity, selectedTheme: Stri
             }
         }
 
-        // Simulator Auto Response Toggle Switch
-        item {
-            val autoReplies by viewModel.enableAutoReplies.collectAsState()
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Otomatik Sohbet Simülatörü",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Kişilere gönderdiğiniz mesajlara otomatik/bot yanıtların gelmesini sağlar. Arkadaşlarınızla kasmadan, gerçekçi şifreli notlaşma için bunu kapatabilirsiniz.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Switch(
-                        checked = autoReplies,
-                        onCheckedChange = { viewModel.toggleAutoReplies(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    )
-                }
-            }
-        }
-
         // Additional specifications metadata info panel
         item {
             Card(
@@ -1765,15 +1785,7 @@ fun ChatConversationScreen(viewModel: NexusViewModel, contact: ContactEntity) {
                                 },
                                 leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) }
                             )
-                            val autoReplies by viewModel.enableAutoReplies.collectAsState()
-                            DropdownMenuItem(
-                                text = { Text(if (autoReplies) "Bot Rolü: Aktif" else "Bot Rolü: Kapalı") },
-                                onClick = {
-                                    showDropdownMenu = false
-                                    viewModel.toggleAutoReplies(!autoReplies)
-                                },
-                                leadingIcon = { Icon(Icons.Default.Android, contentDescription = null, tint = if (autoReplies) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
-                            )
+
                         }
                     }
                 },

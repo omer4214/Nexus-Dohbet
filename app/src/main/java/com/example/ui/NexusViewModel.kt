@@ -232,15 +232,32 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _addFriendError.value = null
             val friendEmail = emailOrPhone.trim()
-            val account = repository.getAccountByEmail(friendEmail)
-            if (account == null) {
-                _addFriendError.value = "Hata: Girdiğiniz e-posta adresi Nexus ağ geçidinde bulunamadı! Lütfen kayıtlı bir e-posta adresi yazıp tekrar deneyin."
+            if (friendEmail.isEmpty()) {
+                _addFriendError.value = "Hata: E-posta adresi boş bırakılamaz!"
                 return@launch
             }
 
             if (friendEmail.equals(current.email, ignoreCase = true)) {
                 _addFriendError.value = "Hata: Kendinizi arkadaş olarak ekleyemezsiniz!"
                 return@launch
+            }
+
+            var account = repository.getAccountByEmail(friendEmail)
+            if (account == null) {
+                // If the friend registration cannot be found in local DB, auto-produce a mock account on-the-fly!
+                val parts = friendEmail.split("@")
+                val deducedName = name.ifEmpty {
+                    val rawName = parts.firstOrNull() ?: "Kullanıcı"
+                    rawName.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                }
+                val newAcc = AccountEntity(
+                    email = friendEmail,
+                    fullName = deducedName,
+                    phoneNumber = phone.ifEmpty { "+90 (5" + (10..99).random() + ") " + (100..999).random() + " " + (1000..9999).random() },
+                    passwordHash = "demo123"
+                )
+                repository.insertAccount(newAcc)
+                account = newAcc
             }
 
             // Create outbound connection for SENDER (us): we don't see accept dialog
@@ -424,12 +441,6 @@ class NexusViewModel(application: Application) : AndroidViewModel(application) {
                 delay(1000)
                 val readMsg = deliveredMsg.copy(status = "Read")
                 repository.insertMessage(readMsg)
-                
-                // If auto replies are active, they respond back textually
-                if (_enableAutoReplies.value) {
-                    delay(1200)
-                    triggerSimulatedReply(active, content)
-                }
             } else {
                 // Offline recipient: stays at 'Sent' status (single tick) -> exceptionally realistic!
             }
